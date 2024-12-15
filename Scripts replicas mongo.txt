@@ -1,0 +1,112 @@
+creación de directorios para logs 
+mkdir C:\mongodb\data\config1
+mkdir C:\mongodb\data\config2
+mkdir C:\mongodb\data\config3
+mkdir C:\mongodb\data\shard1
+mkdir C:\mongodb\data\shard2
+mkdir C:\mongodb\data\shard3
+mkdir C:\mongodb\data\router
+
+
+inicio de instancia del server 
+mongod --configsvr --replSet configReplSet --port 27019 --dbpath C:\mongodb\data\config1 --logpath C:\mongodb\data\config1\log.log
+mongod --configsvr --replSet configReplSet --port 27020 --dbpath C:\mongodb\data\config2 --logpath C:\mongodb\data\config2\log.log 
+
+mongod --configsvr --replSet configReplSet --port 27021 --dbpath C:\mongodb\data\config3 --logpath C:\mongodb\data\config3\log.log
+
+
+Se crea regla de firewall para  evitar errores de conexión por rechazo de petición 
+
+
+se inicializa la replica desde mongo: 
+rs.initiate({
+  _id: "configReplSet",
+  configsvr: true,
+  members: [
+    { _id: 0, host: "localhost:27019" },
+    { _id: 1, host: "localhost:27020" },
+    { _id: 2, host: "localhost:27021" }
+  ]
+});
+
+
+configuración de los shards
+mongod --shardsvr --replSet shardReplSet1 --port 27022 --dbpath C:\mongodb\data\shard1 --logpath C:\mongodb\data\shard1\log.log 
+mongod --shardsvr --replSet shardReplSet2 --port 27023 --dbpath C:\mongodb\data\shard2 --logpath C:\mongodb\data\shard2\log.log 
+mongod --shardsvr --replSet shardReplSet3 --port 27024 --dbpath C:\mongodb\data\shard3 --logpath C:\mongodb\data\shard3\log.log
+
+
+
+iniciación de la replica de los shards
+rs.initiate({
+  _id: "shardReplSet1",
+  members: [
+    { _id: 0, host: "localhost:27022" }
+  ]
+});
+
+
+rs.initiate({
+  _id: "shardReplSet2",
+  members: [
+    { _id: 0, host: "localhost:27022" }
+  ]
+});
+
+
+rs.initiate({
+  _id: "shardReplSet3",
+  members: [
+    { _id: 0, host: "localhost:27022" }
+  ]
+});
+
+
+inicialización de los routers para la fragmentación:
+mongos --configdb configReplSet/localhost:27019,localhost:27020,localhost:27021 --port 27017 --logpath C:\mongodb\data\router\log.log --fork
+
+
+habilitación del sharding 
+sh.enableSharding("Eventos_Deportivos");
+
+
+Se valida el estatus de las replicaciones 
+sh.status();
+
+La respuesta es la siguiente:
+Config Server 1	27019
+Config Server 2	27020
+Config Server 3	27021
+Shard Server 1	27022
+Shard Server 2	27023
+Shard Server 3	27024
+Router (mongos)	27017
+
+
+
+---
+Ajustes adicionales para que el proceso funcionara 
+
+validación de que el puerto este escuchando 
+netstat -ano | findstr 27019
+
+se configura en el archivo la ruta de replicación 
+C:\Program Files\MongoDB\Server\
+
+y se incuyen el nombre del set ára el nodo 
+replication:
+  replSetName: "shardReplSet1"
+
+se reinicia el mongo desde shell
+net start MongoDB
+
+
+se valida desde una consola de mongo con el siguiente comando:
+rs.initiate({
+  _id: "shardReplSet1",
+  members: [
+    { _id: 0, host: "localhost:27017" }
+  ]
+});
+
+
